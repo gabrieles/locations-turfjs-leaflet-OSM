@@ -1,0 +1,240 @@
+<script>
+
+var simplifyRes = true;
+var optionsSimplify = {tolerance: 0.01, highQuality: false, mutate: true};
+var optionsBuffer = {units: 'miles', steps: 20};
+
+
+$('.copyCoord').click( function(){
+  var copyText = $(this);
+  copyText.select();
+  document.execCommand("Copy");
+});
+
+
+//generateGreatBritain();
+
+
+//function to generate a polygon for the UK (minus Northern Ireland). Useful to exclude from buffered polygons locations that are across the sea
+function generateGreatBritain(){
+   
+  var OSapiURL = "https://nominatim.openstreetmap.org/search.php?q=England, United Kingdom&polygon_geojson=1&format=json";
+  $.getJSON( OSapiURL, function( data ) {
+    var engGeoJson = turf.simplify( data[0].geojson, optionsSimplify ); 
+    
+    var OSapiURL = "https://nominatim.openstreetmap.org/search.php?q=Wales, United Kingdom&polygon_geojson=1&format=json";
+    $.getJSON( OSapiURL, function( data ) {
+      var walGeoJson = turf.simplify( data[0].geojson, optionsSimplify);  
+      
+      var OSapiURL = "https://nominatim.openstreetmap.org/search.php?q=Scotland, United Kingdom&polygon_geojson=1&format=json";
+      $.getJSON( OSapiURL, function( data ) {
+        var scoGeoJsonRaw = turf.simplify( data[0].geojson, optionsSimplify);
+        var scoGeoJson = turf.simplify( turf.buffer(scoGeoJsonRaw, 5, optionsBuffer), optionsSimplify)
+        var engPol = turf.polygon(engGeoJson.coordinates);
+        var walPol = turf.polygon(walGeoJson.coordinates);
+        var scoPol1 = turf.polygon( scoGeoJson.geometry.coordinates[0] );
+        var scoPol2 = turf.polygon( scoGeoJson.geometry.coordinates[1] );
+        var scoPol3 = turf.polygon( scoGeoJson.geometry.coordinates[1] );
+        
+        var GBgeojsonRAW = turf.union( engPol, walPol, scoPol1, scoPol3, scoPol3  ).geometry;
+        var GBgeojson = turf.simplify( turf.buffer(GBgeojsonRAW, 3, optionsBuffer), optionsSimplify).geometry;
+        localStorage.setItem("locationGB", JSON.stringify( GBgeojson ) );
+        $('#filterButtons').append('<button class="addPolFilter">&#127760;</button>');
+        $('.addPolFilter').click( function(index,item){
+          console.log('Show GB');
+          var geoJSON = JSON.parse( localStorage.getItem("locationGB") );
+          addPolygon(geoJSON);     
+        });
+      });
+    });
+  });
+}
+
+
+
+//call OSM and get a list of possible locations. Store the response to localStorage to use it later without having to run another API call
+function getLocation(){  
+  
+  //clean up previous results
+  localStorage.removeItem("locationResponse")  
+
+  var OSbaseURL = "https://nominatim.openstreetmap.org/search.php?q=";
+  var locationVal = $('#searchLoc').val();
+  var OSapiURL = OSbaseURL + locationVal + "&polygon_geojson=1&format=json";
+  
+  $('.results').empty();
+  $('#mapBox').html('<div id="mapid"></div>');
+  
+  $('#box').hide();
+  
+  $.getJSON( OSapiURL, function( data ) {
+  
+  var numRes = data.length;
+  
+  switch(numRes){
+    case 0:
+      $('#displayName').text('No results found');
+    break;
+    
+    case 1:
+      printResult(data[0]);
+    break;
+    
+    default:
+      
+      //store the response locally 
+      localStorage.setItem("locationResponse", JSON.stringify(data) );
+      
+      $.each( data, function( key, resItem ) {
+        $('#options').append( '<div class="option"><button onclick="printItem(' + key + ')">' + resItem.display_name + '</button><span> (' + resItem.geojson.type + ')</span></div>' );
+      });
+    
+  }
+    
+  });
+}
+
+
+
+//function to get a specific item out of localStorage and then print it
+function printItem(index){
+  
+  var response = JSON.parse( localStorage.getItem("locationResponse") );
+  var jsonObj = response[index];
+  
+  $('#displayName').html( '<span>' + jsonObj.display_name + '</span>'); //<button class="action" onclick="printExpansions()">Print expansions</button>' );
+  $('#locationJson').html( '<div class="label"> Original (' + jsonObj.geojson.coordinates[0].length +')<button class="addPol">&#127760;</button></div><div class="coordinates">'+ JSON.stringify(jsonObj.geojson) +'</div>');
+  localStorage.setItem("locationObj", JSON.stringify(jsonObj.geojson)) 
+  printExpansions();
+  setMap(jsonObj.geojson); 
+}
+
+
+//function to print out all buffered polygons
+function printExpansions(){
+  var jsonLoc = JSON.parse( localStorage.getItem("locationObj") );
+ 
+  if (simplifyRes) {
+    var geoJSON = turf.simplify(jsonLoc, optionsSimplify);
+  } else {
+    var geoJSON = jsonLoc;
+  }
+  
+  //print coordinates for DIDI
+  $('#box').show();
+  printDidiCoordinates(geoJSON)
+  
+  //always print simplified version
+  var output = JSON.stringify( geoJSON);
+  $('#location0').html( '<div class="label"> Simplified (' + geoJSON.coordinates[0].length + ')<button class="addPol">&#127760;</button><button class="addPolSimp">&#8576;</button></div><div class="coordinates">'+ output+'</div>');
+
+  var radiusArray = [1,3,5,10,20,40,80]  
+  for (var i= 0; i<radiusArray.length; i++){
+    expandLocation(geoJSON, radiusArray[i], 20);
+  }
+  
+  $('.addPol').click( function(index,item){
+     var geoJSON = JSON.parse( $(this).parent().parent().find('.coordinates').text() );
+     addPolygon(geoJSON);     
+  });
+  
+  $('.addPolSimp').click( function(index,item){
+     var geoText = $(this).parent().parent().find('.coordinates').text()
+
+     var geoJSON = JSON.parse( geoText );
+     if (geoJSON.type = 'MultiPolygon'){
+       var geoFeatureText =  '{ "type": "Feature", "properties": {}, "geometry": ' + geoText + '}';
+       console.log(  geoFeatureText );
+       var geoFeatureJSON = JSON.parse( geoFeatureText );
+       var hull = turf.convex( geoFeatureJSON, {"concavity" : 1} );
+       geoJSON = hull.geometry;
+     }
+     addPolygon(geoJSON);     
+  });
+  
+}
+
+//function to add the buffer
+function expandLocation(geoJSON, radius, maxNumPoints = 0){
+  
+  if (simplifyRes) {
+    var expandedJSON =  turf.simplify( turf.buffer(geoJSON, radius, optionsBuffer ), optionsSimplify);
+  } else {
+    var expandedJSON = turf.buffer(geoJSON, radius, options );
+  }
+ 
+  var output = JSON.stringify( expandedJSON.geometry );
+  $('#location' + radius ).html( '<div class="label"> Radius ' + radius + ' (' + expandedJSON.geometry.coordinates[0].length + ') <button class="addPol">&#127760;</button><button class="addPolSimp">&#8576;</button></div><div class="coordinates">'+ output+'</div>');
+  
+}
+
+
+
+//update the map
+function setMap(geoJSON){
+  var fgeoJSON = turf.flip(geoJSON);
+  
+  var center = turf.center(fgeoJSON);
+  var mymap = L.map('mapid').setView(center.geometry.coordinates, 7);
+  
+  L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+    maxZoom: 18,
+    id: 'mapbox.streets',
+    accessToken: 'pk.eyJ1IjoiZ2FicmllbGUiLCJhIjoiY2o4bzg0aXpzMDBmNTJxdW04djZybXB1YSJ9.ImhzPFcyZDMTjIBr8duTGA'
+  }).addTo(mymap);
+  
+  var polygon = L.polygon(fgeoJSON.coordinates,{
+    color: '#357ae8',
+    fillColor: '#b7d2fa',
+    fillOpacity: 0.5
+  }).addTo(mymap);
+  
+}
+
+
+//function to merge polygons on the map
+function addPolygon(geoJSON){
+  var fgeoJSON = turf.flip(geoJSON);
+  
+  $('#mapBox').html('<div id="mapid"></div>');
+  var center = turf.center(fgeoJSON);
+  var mymap = L.map('mapid').setView(center.geometry.coordinates, 7);
+  L.tileLayer('https://api.tiles.mapbox.com/v4/{id}/{z}/{x}/{y}.png?access_token={accessToken}', {
+    attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+    maxZoom: 18,
+    id: 'mapbox.streets',
+    accessToken: 'pk.eyJ1IjoiZ2FicmllbGUiLCJhIjoiY2o4bzg0aXpzMDBmNTJxdW04djZybXB1YSJ9.ImhzPFcyZDMTjIBr8duTGA'
+  }).addTo(mymap);
+  var polygon = L.polygon(fgeoJSON.coordinates,{
+    color: '#357ae8',
+    fillColor: '#b7d2fa',
+    fillOpacity: 0.5
+  }).addTo( mymap );
+  
+  printDidiCoordinates(geoJSON);
+  
+}
+
+
+
+//print the coordinates for the center and the corners of the bounding box of a polygon - useful to replace the Google Maps API response
+function printDidiCoordinates(geoJSON){
+  
+  var fgeoJSON = turf.flip(geoJSON);
+  
+  var bbox = turf.bbox(fgeoJSON);
+  var centroid = turf.centroid(fgeoJSON);
+  
+  $('#ceLat').val(centroid.geometry.coordinates[0]);
+  $('#ceLon').val(centroid.geometry.coordinates[1]);
+  
+  $('#SWLat').val(bbox[0]);
+  $('#SWLon').val(bbox[1]);
+  
+  $('#NELat').val(bbox[2]);
+  $('#NELon').val(bbox[3]);
+  
+}
+
+</script>

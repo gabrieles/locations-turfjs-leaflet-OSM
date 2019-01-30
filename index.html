@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <script src='https://npmcdn.com/@turf/turf/turf.min.js'></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.4.0/dist/leaflet.css" integrity="sha512-puBpdR0798OZvTTbP4A8Ix/l+A4dHDD0DGqYW6RQ+9jxkRFclaxxQb/SJAWZfWAkuyeQUytO7+7N4QKrDh+drA==" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.4.0/dist/leaflet.js" integrity="sha512-QVftwZFqvtRNi0ZyCtsznlKSWOStnDORoefr1enyq5mVL4tmKB3S/EnC3rRJcxCPavG10IcrVGSmPh6Qw5lwrg==" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.0/clipboard.min.js"></script>
+   
+   <?!= getContent('locations.css'); ?>
+    
+  </head>
+  <body>
+    <div class="wrapper">
+      <div id="inputArea">
+        <div id="inputBox">
+          <div id="inputWrap">
+            <input id="searchLoc" placeholder="Area or country" type="text">
+            <button id="getLocation" class="action" onclick="getLocation()">Get Location</button>
+          </div>
+          <div id="filter">
+            <label for="filterBox">Restrict to GB</label><input id="filterBox" placeholder="Area or country" type="checkbox">
+            <span id="filterButtons">            
+            </span>
+            <div class="coordinates"></div>
+          </div>
+          <div id="box">
+            <div class="coordWrap"><span>Center Lat: </span><input type="text" class="copyCoord" id="ceLat"></div>
+            <div class="coordWrap"><span>Center Lon: </span><input type="text" class="copyCoord" id="ceLon"></div>
+            <div class="coordWrap"><span>Box SW Lat: </span><input type="text" class="copyCoord" id="SWLat"></div>
+            <div class="coordWrap"><span>Box SW Lon: </span><input type="text" class="copyCoord" id="SWLon"></div>
+            <div class="coordWrap"><span>Box NE Lat: </span><input type="text" class="copyCoord" id="NELat"></div>
+            <div class="coordWrap"><span>Box NE Lon: </span><input type="text" class="copyCoord" id="NELon"></div>
+          </div>
+          <div id="options" class="results"></div>
+        </div>
+        <div id="mapBox">
+          <div id="mapid"></div>          
+        </div>
+      </div>      
+      <div id="result">
+         <div id="displayName" class="results"></div>
+         <div id="json-wrapper">
+           <div id="locationJson" class="results"></div>
+           <div id="location0" class="results"></div>
+           <div id="location1" class="results"></div>
+           <div id="location3" class="results"></div>
+           <div id="location5" class="results"></div>
+           <div id="location10" class="results"></div>
+           <div id="location20" class="results"></div>
+           <div id="location40" class="results"></div>
+           <div id="location80" class="results"></div>
+        </div>
+      </div>
+    </div>
+    <?!= getContent('locations.js'); ?>
+  </body>
+</html>
+
+
