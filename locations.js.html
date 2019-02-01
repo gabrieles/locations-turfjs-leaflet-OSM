@@ -9,6 +9,13 @@ var optionsBuffer = {units: 'miles', steps: 20};
 var optionsSimplify = {tolerance: 0.01, highQuality: false, mutate: true};
 var optionsConvex = { concavity : 1}
 
+//submit on enter
+$('#searchLoc').keypress(function(e){
+    if(e.keyCode == 13)
+    {
+       getLocation()
+    }
+});
 
 $('.copyCoord').click( function(){
   var copyText = $(this);
@@ -22,7 +29,7 @@ $('.copyCoord').click( function(){
 
 //function to generate a polygon for the UK (minus Northern Ireland). Useful to exclude from buffered polygons locations that are across the sea
 function generateGreatBritain(){
-   
+
   var OSapiURL = "https://nominatim.openstreetmap.org/search.php?q=England, United Kingdom&polygon_geojson=1&format=json";
   $.getJSON( OSapiURL, function( data ) {
     var engGeoJson = turf.simplify( data[0].geojson, optionsSimplify ); 
@@ -60,6 +67,8 @@ function generateGreatBritain(){
 //call OSM and get a list of possible locations. Store the response to localStorage to use it later without having to run another API call
 function getLocation(){  
   
+  $('.loader').show(); 
+  
   //clean up previous results
   localStorage.removeItem("locationResponse")  
 
@@ -82,7 +91,7 @@ function getLocation(){
     break;
     
     case 1:
-      printResult(data[0]);
+      printItem(data[0]);
     break;
     
     default:
@@ -95,18 +104,21 @@ function getLocation(){
       });
     
   }
-    
+  
+  $('.loader').hide();   
+  
   });
 }
 
-
-
-//function to get a specific item out of localStorage and then print it
-function printItem(index){
-  
+function printFromLocalStorage(index){
   var response = JSON.parse( localStorage.getItem("locationResponse") );
   var jsonObj = response[index];
-  
+  printItem(jsonObj);
+}
+
+//function to get a specific item out of localStorage and then print it
+function printItem(jsonObj){
+    
   $('#displayName').html( '<span>' + jsonObj.display_name + '</span>'); //<button class="action" onclick="printExpansions()">Print expansions</button>' );
   $('#locationJson').html( '<div class="label"> Original (' + jsonObj.geojson.coordinates[0].length +')<button class="addPol">&#127760;</button></div><div class="coordinates">'+ JSON.stringify(jsonObj.geojson) +'</div>');
   localStorage.setItem("locationObj", JSON.stringify(jsonObj.geojson)) 
