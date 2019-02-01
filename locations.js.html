@@ -100,7 +100,7 @@ function getLocation(){
       localStorage.setItem("locationResponse", JSON.stringify(data) );
       
       $.each( data, function( key, resItem ) {
-        $('#options').append( '<div class="option"><button onclick="printItem(' + key + ')">' + resItem.display_name + '</button><span> (' + resItem.geojson.type + ')</span></div>' );
+        $('#options').append( '<div class="option"><button onclick="printFromLocalStorage(' + key + ')">' + resItem.display_name + '</button><span> (' + resItem.geojson.type + ')</span></div>' );
       });
     
   }
